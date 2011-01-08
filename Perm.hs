@@ -118,8 +118,8 @@ some = atLeast 1
 
 -- | Build a tree (using '<|>' for branching) of all permutations of the
 -- computations. The tree shape allows permutations to share common prefixes.
--- This allows clever computations to quickly prune uninteresting branches of
--- permutations.
+-- This allows clever computations to quickly prune away uninteresting
+-- branches of permutations.
 perms :: Alternative p => Effects p a -> p a
 perms (Nil x) = pure x
 perms ps      = asum . eps . map permTail . firsts $ ps
