@@ -57,7 +57,7 @@ perms :: Alternative p => Effects p a -> p a
 perms (Nil x) = pure x
 perms ps      = asum . map permTail . firsts $ ps
   where
-    permTail (p :- ps') = flip ($) <$> p <*> perms ps'
+    permTail (p :- ps') = p <**> perms ps'
     permTail _          = undefined
 
 -- | Give each effect a chance to be the first effect in the chain, producing
