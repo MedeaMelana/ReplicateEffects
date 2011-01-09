@@ -137,7 +137,7 @@ perms ps      = asum . eps . map (permTail . splitHead) . firsts $ ps
       -- If no occurrence of any of the effects are required, also allow the 
       -- empty string.
       case effectsMatchEpsilon ps of
-        Just x   -> (pure x :)
+        Just x   -> (++ [pure x])
         Nothing  -> id
 
     splitHead (p :- ps') = split p <**> ps'
