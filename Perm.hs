@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs #-}
 
 module Perm
-  ( Effects(..), length, swap, firsts, perms
+  ( Effects(..), Freq(..), length, runEffects, runFreq, swap, firsts, perms
 
   -- * Lifting computations
   , once, opt, atLeast, between, exactly, many, some
@@ -23,6 +23,8 @@ data Effects p a where
 
 infixr 5 :-
 
+-- | Used to indicate the frequency of a computation in a single permutation,
+-- changing the result type accordingly.
 data Freq f a where
   Once    ::               f a -> Freq f a
   Opt     ::               f a -> Freq f (Maybe a)
@@ -46,6 +48,7 @@ length :: Effects p a -> Int
 length (Nil _)     = 0
 length (_ :- xs) = 1 + length xs
 
+-- | Run a computation with a certain frequency.
 runFreq :: Alternative p => Freq p a -> p a
 runFreq freq =
   case freq of
@@ -89,7 +92,7 @@ lift freq = freq :- Nil id
 once :: p a -> Effects p a
 once = lift . Once
 
--- | Run the computation exactly 0 or 1 times in each permutation.
+-- | Run the computation exactly zero or one times in each permutation.
 opt :: p a -> Effects p (Maybe a)
 opt = lift . Opt
 
@@ -106,15 +109,18 @@ between n m = lift . Between n m
 exactly :: Int -> p a -> Effects p [a]
 exactly n = between n n
 
+-- | Run the computation zero or more times in each permutation.
 many :: p a -> Effects p [a]
 many = atLeast 0
 
+-- | Run the computation one or more times in each permutation.
 some :: p a -> Effects p [a]
 some = atLeast 1
 
--- runEffects :: Alternative p => Effects p a -> p a
--- runEffects (Nil x) = pure x
--- runEffects (freq :- ps) = runFreq freq <**> runEffects ps
+-- | Run the effects in order, respecting their frequencies.
+runEffects :: Alternative p => Effects p a -> p a
+runEffects (Nil x) = pure x
+runEffects (freq :- ps) = runFreq freq <**> runEffects ps
 
 -- | Build a tree (using '<|>' for branching) of all permutations of the
 -- computations. The tree shape allows permutations to share common prefixes.
