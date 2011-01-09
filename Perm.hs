@@ -122,7 +122,7 @@ some = atLeast 1
 -- branches of permutations.
 perms :: Alternative p => Effects p a -> p a
 perms (Nil x) = pure x
-perms ps      = asum . eps . map permTail . firsts $ ps
+perms ps      = asum . eps . map (permTail . splitHead) . firsts $ ps
   where
     permTail (p :- ps') = runFreq p <**> perms ps'
     permTail _          = undefined
@@ -134,6 +134,9 @@ perms ps      = asum . eps . map permTail . firsts $ ps
         Just x   -> (pure x :)
         Nothing  -> id
 
+    splitHead (p :- ps') = split p <**> ps'
+    splitHead _          = undefined
+
 -- | Give each effect a chance to be the first effect in the chain, producing
 -- @n@ new chains where @n@ is the 'length' of the input chain. In each case
 -- the relative order of the effects is preserved with exception of the effect
@@ -141,7 +144,7 @@ perms ps      = asum . eps . map permTail . firsts $ ps
 firsts :: Effects p a -> [Effects p a]
 firsts (Nil _) = []
 firsts (freq :- ps) =
-  (split freq <**> ps) : map (\ps' -> swap (freq :- ps')) (firsts ps)
+  (freq :- ps) : map (\ps' -> swap (freq :- ps')) (firsts ps)
 
 -- | Swaps the first two elements of the list, if they exist.
 swap :: Effects p a -> Effects p a
