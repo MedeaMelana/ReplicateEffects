@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs #-}
 
-module Perm
+module Control.Permute
   ( Effects(..), Freq(..), length, runEffects, runFreq, swap, firsts, perms
 
   -- * Lifting computations

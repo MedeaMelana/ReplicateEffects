@@ -1,6 +1,6 @@
 module ParsecEx where
 
-import Perm
+import Control.Permute
 
 import Data.Traversable
 import Control.Applicative
