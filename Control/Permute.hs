@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Control.Permute
   ( Effects(..), Freq(..), length, runEffects, runFreq, swap, firsts, perms
@@ -126,20 +127,23 @@ runEffects (freq :- ps) = runFreq freq <**> runEffects ps
 -- computations. The tree shape allows permutations to share common prefixes.
 -- This allows clever computations to quickly prune away uninteresting
 -- branches of permutations.
-perms :: Alternative p => Effects p a -> p a
+perms :: forall p a. Alternative p => Effects p a -> p a
 perms (Nil x) = pure x
 perms ps      = asum . eps . map (permTail . splitHead) . firsts $ ps
   where
+    permTail :: Effects p a -> p a
     permTail (p :- ps') = runFreq p <**> perms ps'
     permTail _          = undefined
-    
+
+    eps :: [p a] -> [p a]
     eps =
-      -- If no occurrence of any of the effects are required, also allow the 
-      -- empty string.
+      -- If none effects are required (i.e. all effects allow frequency 0), 
+      -- also allow the empty string.
       case effectsMatchEpsilon ps of
         Just x   -> (++ [pure x])
         Nothing  -> id
 
+    splitHead :: Effects p a -> Effects p a
     splitHead (p :- ps') = split p <**> ps'
     splitHead _          = undefined
 
