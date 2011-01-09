@@ -13,14 +13,14 @@ import Prelude hiding (length, sequence)
 import Control.Applicative hiding (some, many)
 import Data.Foldable
 
--- | A chain of effectful @p@-computations with final result @a@. Individual
+-- | A chain of effectful @f@-computations with final result @a@. Individual
 -- computations have their own result types, which fit together in standard
 -- 'Applicative' fashion. Although these result types are existentially
 -- quantified, the computations can still be moved around within the list
 -- (e.g. 'swap', 'firsts'). This allows their permutations to be computed.
-data Effects p a where
-  Nil  :: a -> Effects p a
-  (:-) :: Freq p b -> Effects p (b -> a) -> Effects p a
+data Effects f a where
+  Nil  :: a -> Effects f a
+  (:-) :: Freq f b -> Effects f (b -> a) -> Effects f a
 
 infixr 5 :-
 
@@ -33,24 +33,24 @@ data Freq f a where
   Between :: Int -> Int -> f a -> Freq f [a]
 
 -- | Map over the final result type.
-instance Functor (Effects p) where
+instance Functor (Effects f) where
   fmap f (Nil x) = Nil (f x)
   fmap f (p :- ps) = p :- fmap (fmap f) ps
 
 -- | 'pure' represents the empty list of computations while '<*>' acts like
 -- '++'.
-instance Applicative (Effects p) where
+instance Applicative (Effects f) where
   pure = Nil
   Nil g <*> y = fmap g y
   (f :- x) <*> y = f :- (flip <$> x <*> y)
 
 -- | Compute the length of a list of computations.
-length :: Effects p a -> Int
+length :: Effects f a -> Int
 length (Nil _)     = 0
 length (_ :- xs) = 1 + length xs
 
 -- | Run a computation with a certain frequency.
-runFreq :: Alternative p => Freq p a -> p a
+runFreq :: Alternative f => Freq f a -> f a
 runFreq freq =
   case freq of
     Once p        -> p
@@ -61,7 +61,7 @@ runFreq freq =
     Between 0 m p -> runFreq (Between 0 (m - 1) p) <|> pure []
     Between n m p -> (:) <$> p <*> runFreq (Between (n - 1) (m - 1) p)
 
-freqMatchesEpsilon :: Freq p a -> Maybe a
+freqMatchesEpsilon :: Freq f a -> Maybe a
 freqMatchesEpsilon freq =
   case freq of
     Opt  _         -> Just Nothing
@@ -69,7 +69,7 @@ freqMatchesEpsilon freq =
     Between 0 _ _  -> Just []
     _              -> Nothing
 
-effectsMatchEpsilon :: Effects p a -> Maybe a
+effectsMatchEpsilon :: Effects f a -> Maybe a
 effectsMatchEpsilon eff =
   case eff of
     Nil x -> Just x
@@ -77,49 +77,49 @@ effectsMatchEpsilon eff =
 
 -- | Splits a frequency such that the first effect in the result always occurs
 -- exactly 'once'.
-split :: Freq p a -> Effects p a
+split :: Freq f a -> Effects f a
 split freq =
   case freq of
-    Once p        -> once p
-    Opt  p        -> Just  <$> once p
-    AtLeast n p   -> (:)   <$> once p <*> atLeast (0 `max` (n - 1)) p
-    Between _ 1 p -> (:[]) <$> once p
-    Between n m p -> (:)   <$> once p <*> between (0 `max` (n - 1)) (m - 1) p
+    Once f        -> once f
+    Opt  f        -> Just  <$> once f
+    AtLeast n f   -> (:)   <$> once f <*> atLeast (0 `max` (n - 1)) f
+    Between _ 1 f -> (:[]) <$> once f
+    Between n m f -> (:)   <$> once f <*> between (0 `max` (n - 1)) (m - 1) f
 
-lift :: Freq p a -> Effects p a
+lift :: Freq f a -> Effects f a
 lift freq = freq :- Nil id
 
 -- | Run the computation exactly once in each permutation.
-once :: p a -> Effects p a
+once :: f a -> Effects f a
 once = lift . Once
 
 -- | Run the computation exactly zero or one times in each permutation.
-opt :: p a -> Effects p (Maybe a)
+opt :: f a -> Effects f (Maybe a)
 opt = lift . Opt
 
 -- | Run the computation at least so many times in each permutation.
-atLeast :: Int -> p a -> Effects p [a]
+atLeast :: Int -> f a -> Effects f [a]
 atLeast n = lift . AtLeast n
 
 -- | Run the computation between so and so many times (inclusive) in each
 -- permutation.
-between :: Int -> Int -> p a -> Effects p [a]
+between :: Int -> Int -> f a -> Effects f [a]
 between n m = lift . Between n m
 
 -- | Run the computation exactly @n@ times in each permutation.
-exactly :: Int -> p a -> Effects p [a]
+exactly :: Int -> f a -> Effects f [a]
 exactly n = between n n
 
 -- | Run the computation zero or more times in each permutation.
-many :: p a -> Effects p [a]
+many :: f a -> Effects f [a]
 many = atLeast 0
 
 -- | Run the computation one or more times in each permutation.
-some :: p a -> Effects p [a]
+some :: f a -> Effects f [a]
 some = atLeast 1
 
 -- | Run the effects in order, respecting their frequencies.
-runEffects :: Alternative p => Effects p a -> p a
+runEffects :: Alternative f => Effects f a -> f a
 runEffects (Nil x) = pure x
 runEffects (freq :- ps) = runFreq freq <**> runEffects ps
 
@@ -127,15 +127,15 @@ runEffects (freq :- ps) = runFreq freq <**> runEffects ps
 -- computations. The tree shape allows permutations to share common prefixes.
 -- This allows clever computations to quickly prune away uninteresting
 -- branches of permutations.
-perms :: forall p a. Alternative p => Effects p a -> p a
+perms :: forall f a. Alternative f => Effects f a -> f a
 perms (Nil x) = pure x
 perms ps      = asum . eps . map (permTail . splitHead) . firsts $ ps
   where
-    permTail :: Effects p a -> p a
+    permTail :: Effects f a -> f a
     permTail (p :- ps') = runFreq p <**> perms ps'
     permTail _          = undefined
 
-    eps :: [p a] -> [p a]
+    eps :: [f a] -> [f a]
     eps =
       -- If none effects are required (i.e. all effects allow frequency 0), 
       -- also allow the empty string.
@@ -143,7 +143,7 @@ perms ps      = asum . eps . map (permTail . splitHead) . firsts $ ps
         Just x   -> (++ [pure x])
         Nothing  -> id
 
-    splitHead :: Effects p a -> Effects p a
+    splitHead :: Effects f a -> Effects f a
     splitHead (p :- ps') = split p <**> ps'
     splitHead _          = undefined
 
@@ -151,12 +151,12 @@ perms ps      = asum . eps . map (permTail . splitHead) . firsts $ ps
 -- @n@ new chains where @n@ is the 'length' of the input chain. In each case
 -- the relative order of the effects is preserved with exception of the effect
 -- that was moved to the front.
-firsts :: Effects p a -> [Effects p a]
+firsts :: Effects f a -> [Effects f a]
 firsts (Nil _) = []
 firsts (freq :- ps) =
   (freq :- ps) : map (\ps' -> swap (freq :- ps')) (firsts ps)
 
 -- | Swaps the first two elements of the list, if they exist.
-swap :: Effects p a -> Effects p a
+swap :: Effects f a -> Effects f a
 swap (p0 :- p1 :- ps) = p1 :- p0 :- fmap flip ps
 swap ps = ps
