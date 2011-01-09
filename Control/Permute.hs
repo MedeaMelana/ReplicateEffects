@@ -14,10 +14,12 @@ import Control.Applicative hiding (some, many)
 import Data.Foldable
 
 -- | A chain of effectful @f@-computations with final result @a@. Individual
--- computations have their own result types, which fit together in standard
+-- computations (lifted into @Effects@ using one of the frequency combinators
+-- below) have their own result types, which fit together in standard
 -- 'Applicative' fashion. Although these result types are existentially
--- quantified, the computations can still be moved around within the list
--- (e.g. 'swap', 'firsts'). This allows their permutations to be computed.
+-- quantified, the computations can still be moved around within the list (see
+-- 'swap' and 'firsts' for examples). This allows their permutations to be
+-- computed.
 data Effects f a where
   Nil  :: a -> Effects f a
   (:-) :: Freq f b -> Effects f (b -> a) -> Effects f a
