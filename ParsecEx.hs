@@ -3,9 +3,9 @@ module ParsecEx where
 import Control.Permute
 
 import Data.Traversable
-import Control.Applicative
+import Control.Applicative hiding (some, many)
 
-import Text.Parsec
+import Text.Parsec hiding (many)
 
 alphabet :: [String]
 alphabet = map pure ['a'..'z']
