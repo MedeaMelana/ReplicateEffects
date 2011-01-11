@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Control.Permute
+module Control.Applicative.Permute
   ( Effects, runEffects, perms
 
   -- * Lifting computations

@@ -1,6 +1,6 @@
 module ParsecEx where
 
-import Control.Permute
+import Control.Applicative.Permute
 
 import Data.Traversable
 import Control.Applicative hiding (some, many)
