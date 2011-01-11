@@ -2,7 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Control.Applicative.Permute
-  ( Effects, runEffects, perms
+  ( Effects, perms
 
   -- * Lifting computations
   , once, opt, atLeast, between, exactly, many, some
