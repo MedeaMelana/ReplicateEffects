@@ -67,7 +67,7 @@ instance Applicative (Replicate a) where
   -- lowerBound (f1 <*> f2) = lowerBound f1 + lowerBound f2
   -- upperBound (f1 <*> f2) = upperBound f1 + upperBound f2
   Replicate mz1 ms1 <*> fr  =  maybe empty (<$> fr) mz1
-                      <|> maybe empty (\s1 -> Replicate Nothing $ Just (flip <$> s1 <*> fr)) ms1
+                           <|> maybe empty (\s1 -> Replicate Nothing $ Just (flip <$> s1 <*> fr)) ms1
 
 
 -- | 'empty' is the empty set {} of allowed occurrences. Not even performing
@@ -86,7 +86,7 @@ instance Alternative (Replicate a) where
 
 -- | Behaves exactly as the 'Alternative' instance.
 instance Monoid (Replicate a b) where
-  mempty = empty
+  mempty  = empty
   mappend = (<|>)
 
 -- And maybe even instance Monad (Replicate a) ??
@@ -96,7 +96,7 @@ instance Monoid (Replicate a b) where
 -- deepest point possible) if multiple frequencies are allowed.
 run :: Alternative f => Replicate a b -> f a -> f b
 run (Replicate mzer msuc) p  =  maybe empty (\f -> p <**> run f p) msuc
-                       <|> maybe empty pure mzer
+                            <|> maybe empty pure mzer
 
 -- | Enumerate all the numbers of allowed occurrences encoded by the
 -- replication scheme.
