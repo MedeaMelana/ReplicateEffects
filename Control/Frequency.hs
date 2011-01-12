@@ -1,5 +1,3 @@
-{-# LANGUAGE GADTs #-}
-
 -- | Composable frequencies of applicative actions.
 module Control.Frequency (
   Freq(..),
