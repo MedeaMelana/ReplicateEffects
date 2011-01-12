@@ -6,6 +6,7 @@ module Control.Frequency (
   one, two, three, opt, many, some, exactly, atLeast, atMost, between
   ) where
 
+import Data.Monoid
 import Control.Applicative hiding (many, some)
 
 
@@ -24,7 +25,11 @@ data Freq a b = Freq
     -- the final composite result.
     fSucc :: Maybe (Freq a (a -> b))
   }
-    
+
+occ :: Freq a b -> [Int]
+occ (Freq mz ms) =
+  maybe [] (const [0]) mz ++
+  maybe [] (map succ . occ) ms
 
 instance Functor (Freq a) where
   fmap f (Freq mzer msuc) = Freq (f <$> mzer) (fmap (f .) <$> msuc)
@@ -35,15 +40,20 @@ instance Applicative (Freq a) where
   -- Sequence two sets of frequencies: pairwise sums.
   -- lowerBound (f1 <*> f2) = lowerBound f1 + lowerBound f2
   -- upperBound (f1 <*> f2) = upperBound f1 + upperBound f2
-  (<*>) = undefined
+  Freq mz1 ms1 <*> fr  =  maybe empty (<$> fr) mz1
+                      <|> maybe empty (\s1 -> Freq Nothing $ Just (flip <$> s1 <*> fr)) ms1
 
 instance Alternative (Freq a) where
   -- Empty set of allowed frequencies.
   empty = Freq Nothing Nothing
   
   -- Union of two sets of allowed frequencies.
-  Freq zer1 suc1 <|> Freq zer2 suc2 = undefined
+  Freq mz1 ms1 <|> Freq mz2 ms2 =
+      Freq (mz1 <|> mz2) (ms1 `mappend` ms2)
 
+instance Monoid (Freq a b) where
+  mempty = empty
+  mappend = (<|>)
 
 -- And maybe even instance Monad (Freq a) ??
 
