@@ -8,13 +8,13 @@ import Control.Applicative hiding (some, many)
 import Data.Foldable
 import Control.Replicate
 
--- | A chain of effectful @f@-computations with final result @a@. Individual
--- computations (lifted into @Effects@ using one of the frequency combinators
--- below) have their own result types, which fit together in standard
--- 'Applicative' fashion. Although these result types are existentially
--- quantified, the computations can still be moved around within the list (see
--- 'swap' and 'firsts' in the source code for examples). This allows their
--- permutations to be computed.
+-- | A chain of effectful @f@-computations with composite result @a@.
+-- Individual computations (lifted into @Effects@ using '*.' below) have their
+-- own result types, which fit together in standard 'Applicative' fashion.
+-- Although these result types are lost in the composite type, the
+-- computations can still be moved around within the list (see 'swap' and
+-- 'firsts' in the source code for examples). This allows their permutations
+-- to be computed.
 data Effects f a where
   Nil  :: a -> Effects f a
   (:-) :: (f x, Replicate x y) -> Effects f (y -> z) -> Effects f z
@@ -70,7 +70,7 @@ perms ps      = eps . asum . map split . firsts $ ps
     eps :: f a -> f a
     eps =
       -- If none effects are required (i.e. all effects allow frequency 0), 
-      -- also allow the empty string.
+      -- also allow a pure action.
       case effectsMatchEpsilon ps of
         Just x   -> (<|> pure x)
         Nothing  -> id
