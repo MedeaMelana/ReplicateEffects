@@ -20,7 +20,7 @@
 -- Replication schemes can then be 'run' to produce actual actions.
 module Control.Replicate (
   -- * Type constructor @Replicate@
-  Replicate(..), run,
+  Replicate(..), run, sizes,
   
   -- * Common replication schemes
   one, two, three, opt, many, some, exactly, atLeast, atMost, between
@@ -46,15 +46,6 @@ data Replicate a b = Replicate
     -- the final composite result.
     rSucc :: Maybe (Replicate a (a -> b))
   }
-
-occ :: Replicate a b -> [Int]
-occ = occ' 0
-  where
-    -- Type signature is mandatory here.
-    occ' :: Int -> Replicate a b -> [Int]
-    occ' n (Replicate mz ms) =
-      maybe [] (const [n]) mz ++
-      maybe [] (occ' (n + 1)) ms
 
 -- | Map over the composite result type.
 instance Functor (Replicate a) where
@@ -105,6 +96,18 @@ instance Monoid (Replicate a b) where
 run :: Alternative f => Replicate a b -> f a -> f b
 run (Replicate mzer msuc) p  =  maybe empty (\f -> p <**> run f p) msuc
                        <|> maybe empty pure mzer
+
+-- | Enumerate all the numbers of allowed occurrences encoded by the
+-- replication scheme.
+sizes :: Num num => Replicate a b -> [num]
+sizes = sizes' 0
+  where
+    -- Type signature is mandatory here.
+    sizes' :: Num num => num -> Replicate a b -> [num]
+    sizes' n (Replicate mz ms) =
+      maybe [] (const [n]) mz ++
+      maybe [] (sizes' (n + 1)) ms
+
 
 
 -- | Perform an action exactly zero times.
