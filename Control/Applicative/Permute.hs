@@ -17,7 +17,7 @@ import Control.Replicate
 -- permutations to be computed.
 data Effects f a where
   Nil  :: a -> Effects f a
-  (:-) :: (f x, Freq x y) -> Effects f (y -> z) -> Effects f z
+  (:-) :: (f x, Replicate x y) -> Effects f (y -> z) -> Effects f z
 
 infixr 5 :-
 
@@ -43,7 +43,7 @@ length (Nil _)     = 0
 length (_ :- xs) = 1 + length xs
 
 -- | Allow a computation to be occur so many times in each permutation.
-(*.) :: Freq a b -> f a -> Effects f b
+(*.) :: Replicate a b -> f a -> Effects f b
 freq *. act = (act, freq) :- Nil id
 
 -- | If all the effects in the chain allow frequency 0, we can execute them
@@ -52,7 +52,7 @@ effectsMatchEpsilon :: Effects f a -> Maybe a
 effectsMatchEpsilon eff =
   case eff of
     Nil x                -> Just x
-    (_, Freq mz _) :- ps -> mz <**> effectsMatchEpsilon ps
+    (_, Replicate mz _) :- ps -> mz <**> effectsMatchEpsilon ps
 
 -- | Build a tree (using '<|>' for branching) of all permutations of the
 -- computations. The tree shape allows permutations to share common prefixes.
@@ -63,9 +63,9 @@ perms (Nil x) = pure x
 perms ps      = eps . asum . map split . firsts $ ps
   where
     split :: Effects f a -> f a
-    split ((_, Freq Nothing Nothing) :- _)    = empty
-    split ((_, Freq (Just z) Nothing) :- ps') = perms (($ z) <$> ps')
-    split ((act, Freq _ (Just s)) :- ps')     = act <**> perms ((act, s) :- ((.) <$> ps'))
+    split ((_, Replicate Nothing Nothing) :- _)    = empty
+    split ((_, Replicate (Just z) Nothing) :- ps') = perms (($ z) <$> ps')
+    split ((act, Replicate _ (Just s)) :- ps')     = act <**> perms ((act, s) :- ((.) <$> ps'))
 
     eps :: f a -> f a
     eps =
