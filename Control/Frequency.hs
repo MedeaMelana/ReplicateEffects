@@ -51,8 +51,8 @@ instance Alternative (Freq a) where
 -- | Run an action a certain number of times, using '<|>' to branch if
 -- multiple frequencies are allowed.
 run :: Alternative f => Freq a b -> f a -> f b
-run (Freq mzer msuc) p  =  maybe empty pure mzer
-                       <|> maybe empty (\f -> p <**> run f p) msuc
+run (Freq mzer msuc) p  =  maybe empty (\f -> p <**> run f p) msuc
+                       <|> maybe empty pure mzer
 
 
 
