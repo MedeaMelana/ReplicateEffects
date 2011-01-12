@@ -84,7 +84,7 @@ many = zero [] <|> some
 
 -- | Allow an action one or more times.
 some :: Freq a [a]
-some = Freq Nothing (Just (flip (:) <$> many))
+some = (:) <$> one <*> many
 
 -- | Allow an action exactly so many times.
 exactly :: Int -> Freq a [a]
@@ -97,10 +97,9 @@ atLeast n = (++) <$> exactly n <*> many
 
 -- | Allow an action at most so many times.
 atMost :: Int -> Freq a [a]
-atMost = between 0
+atMost 0 = zero []
+atMost n = zero [] <|> (:) <$> one <*> atMost (n - 1)
 
 -- | Allow an action to be run between so and so many times (inclusive).
 between :: Int -> Int -> Freq a [a]
-between 0 0 = zero []
-between 0 m = zero [] <|> (:) <$> one <*> between 0 (m - 1)
-between n m = (++) <$> exactly n <*> between 0 (m - n)
+between m n = (++) <$> exactly m <*> atMost (n - m)
