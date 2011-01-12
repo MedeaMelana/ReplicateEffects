@@ -23,9 +23,10 @@ module Control.Replicate (
   Replicate(..), run, sizes,
   
   -- * Common replication schemes
-  one, two, three, opt, many, some, exactly, atLeast, atMost, between
+  one, two, three, opt, many, some, exactly, atLeast, atMost, between, even, odd
   ) where
 
+import Prelude hiding (even, odd)
 import Data.Monoid
 import Control.Applicative hiding (many, some)
 
@@ -156,3 +157,11 @@ atMost n = zero [] <|> (:) <$> one <*> atMost (n - 1)
 -- | Allow an action to be performed between so and so many times (inclusive).
 between :: Int -> Int -> Replicate a [a]
 between m n = (++) <$> exactly m <*> atMost (n - m)
+
+-- | Perform an action any even number of times.
+even :: Replicate a [a]
+even = zero [] <|> (\x y zs -> x : y : zs) <$> one <*> one <*> even
+
+-- | Perform an action any odd number of times.
+odd :: Replicate a [a]
+odd = (:) <$> one <*> even
