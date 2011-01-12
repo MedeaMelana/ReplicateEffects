@@ -55,7 +55,7 @@ instance Functor (Replicate a) where
 -- produces the set of occurrences that are the sums of all possible pairs
 -- from the two operands. 
 -- 
--- An example: sequencing @'exactly' 2@ ({2}) with @'exactly' 3@ {3} produces
+-- An example: sequencing @'exactly' 2@ {2} with @'exactly' 3@ {3} produces
 -- {2+3} = {5}.
 -- 
 -- Another example: sequencing the set {0, 1} ('opt') with itself produces
@@ -74,7 +74,8 @@ instance Applicative (Replicate a) where
 -- an action zero times is allowed in that case.
 --
 -- '<|>' computes the union of the two sets. For example, @'between' 2 4 '<|>'
--- 'between' 3 5@ is equivalent to @'between' 2 5@.
+-- 'between' 3 5@ is equivalent to @'between' 2 5@. Again, in case of overlap,
+-- 'rZero's from the left operand are favored.
 instance Alternative (Replicate a) where
   empty = Replicate Nothing Nothing
   
