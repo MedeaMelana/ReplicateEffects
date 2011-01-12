@@ -91,5 +91,5 @@ atLeast n = (++) <$> exactly n <*> many
 -- | Allow an action to be run between so and so many times (inclusive).
 between :: Int -> Int -> Freq a [a]
 between 0 0 = zero []
-between 0 m = zero [] <|> between 0 (m - 1)
-between n m = (++) <$> atLeast n <*> between 0 (m - n)
+between 0 m = zero [] <|> (:) <$> one <*> between 0 (m - 1)
+between n m = (++) <$> exactly n <*> between 0 (m - n)
