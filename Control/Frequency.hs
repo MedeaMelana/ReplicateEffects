@@ -1,6 +1,6 @@
 -- | Composable frequencies of applicative actions.
 module Control.Frequency (
-  Freq(..),
+  Freq(..), run,
   
   -- * Common frequency sets
   one, two, three, opt, many, some, exactly, atLeast, between
@@ -46,6 +46,13 @@ instance Alternative (Freq a) where
 
 
 -- And maybe even instance Monad (Freq a) ??
+
+
+-- | Run an action a certain number of times, using '<|>' to branch if
+-- multiple frequencies are allowed.
+run :: Alternative f => Freq a b -> f a -> f b
+run (Freq mzer msuc) p  =  maybe empty pure mzer
+                       <|> maybe empty (\f -> p <**> run f p) msuc
 
 
 
