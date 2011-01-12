@@ -3,7 +3,7 @@ module Control.Frequency (
   Freq(..), run,
   
   -- * Common frequency sets
-  one, two, three, opt, many, some, exactly, atLeast, between
+  one, two, three, opt, many, some, exactly, atLeast, atMost, between
   ) where
 
 import Control.Applicative hiding (many, some)
@@ -94,6 +94,10 @@ exactly n = (:) <$> one <*> exactly (n - 1)
 -- | Allow an action at least so many times.
 atLeast :: Int -> Freq a [a]
 atLeast n = (++) <$> exactly n <*> many
+
+-- | Allow an action at most so many times.
+atMost :: Int -> Freq a [a]
+atMost = between 0
 
 -- | Allow an action to be run between so and so many times (inclusive).
 between :: Int -> Int -> Freq a [a]
