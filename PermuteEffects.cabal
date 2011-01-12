@@ -18,6 +18,6 @@ Extra-source-files:  ParsecEx.hs
 Cabal-version:       >= 1.2
 
 Library
-  Exposed-modules:     Control.Frequency
+  Exposed-modules:     Control.Replicate
                        Control.Applicative.Permute
   Build-depends:       base >= 4.0 && < 4.4

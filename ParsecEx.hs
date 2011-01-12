@@ -1,6 +1,6 @@
 module ParsecEx where
 
-import Control.Frequency
+import Control.Replicate
 import Control.Applicative.Permute
 
 import Data.Traversable

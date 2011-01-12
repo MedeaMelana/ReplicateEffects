@@ -6,7 +6,7 @@ module Control.Applicative.Permute ( Effects, perms, (*.) ) where
 import Prelude hiding (length, sequence)
 import Control.Applicative hiding (some, many)
 import Data.Foldable
-import Control.Frequency
+import Control.Replicate
 
 -- | A chain of effectful @f@-computations with final result @a@. Individual
 -- computations (lifted into @Effects@ using one of the frequency combinators

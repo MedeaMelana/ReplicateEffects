@@ -1,5 +1,5 @@
 -- | Composable frequencies of applicative actions.
-module Control.Frequency (
+module Control.Replicate (
   Freq(..), run,
   
   -- * Common frequency sets
