@@ -27,9 +27,13 @@ data Freq a b = Freq
   }
 
 occ :: Freq a b -> [Int]
-occ (Freq mz ms) =
-  maybe [] (const [0]) mz ++
-  maybe [] (map succ . occ) ms
+occ = occ' 0
+  where
+    -- Type signature is mandatory here.
+    occ' :: Int -> Freq a b -> [Int]
+    occ' n (Freq mz ms) =
+      maybe [] (const [n]) mz ++
+      maybe [] (occ' (n + 1)) ms
 
 instance Functor (Freq a) where
   fmap f (Freq mzer msuc) = Freq (f <$> mzer) (fmap (f .) <$> msuc)
