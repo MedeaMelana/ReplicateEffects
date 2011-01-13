@@ -6,7 +6,7 @@ module Control.Applicative.Permute ( Effects, perms, (*.) ) where
 import Prelude hiding (length, sequence)
 import Control.Applicative hiding (some, many)
 import Data.Foldable
-import Control.Replicate hiding (Nil)
+import Control.Replicate hiding (Nil, Cons)
 import qualified Control.Replicate as R
 
 -- | A chain of effectful @f@-computations with composite result @a@.
@@ -18,34 +18,32 @@ import qualified Control.Replicate as R
 -- to be computed.
 data Effects f a where
   Nil  :: a -> Effects f a
-  (:-) :: (f x, Replicate x y) -> Effects f (y -> z) -> Effects f z
-
-infixr 5 :-
+  Cons :: f x -> Replicate x y -> Effects f (y -> z) -> Effects f z
 
 runEffects :: Alternative f => Effects f a -> f a
 runEffects (Nil x) = pure x
-runEffects ((act, freq) :- fs) = run freq act <**> runEffects fs
+runEffects (Cons act freq fs) = run freq act <**> runEffects fs
 
 -- | Map over the final result type.
 instance Functor (Effects f) where
   fmap f (Nil x) = Nil (f x)
-  fmap f (p :- ps) = p :- fmap (fmap f) ps
+  fmap f (Cons a r ps) = Cons a r (fmap (fmap f) ps)
 
 -- | 'pure' represents the empty list of computations while '<*>' acts like
 -- '++'.
 instance Applicative (Effects f) where
   pure = Nil
   Nil g <*> y = fmap g y
-  (f :- x) <*> y = f :- (flip <$> x <*> y)
+  Cons a r x <*> y = Cons a r (flip <$> x <*> y)
 
 -- | Compute the length of a list of computations.
 length :: Effects f a -> Int
 length (Nil _)     = 0
-length (_ :- xs) = 1 + length xs
+length (Cons _ _ xs) = 1 + length xs
 
 -- | Allow a computation to be occur so many times in each permutation.
 (*.) :: Replicate a b -> f a -> Effects f b
-freq *. act = (act, freq) :- Nil id
+freq *. act = Cons act freq (Nil id)
 
 -- | If all the effects in the chain allow frequency 0, we can execute them
 -- all 0 times and get a result.
@@ -53,7 +51,7 @@ effectsMatchEpsilon :: Effects f a -> Maybe a
 effectsMatchEpsilon eff =
   case eff of
     Nil x                -> Just x
-    (_, Cons mz _) :- ps -> mz <**> effectsMatchEpsilon ps
+    Cons  _ (R.Cons mz _) ps -> mz <**> effectsMatchEpsilon ps
 
 -- | Build a tree (using '<|>' for branching) of all permutations of the
 -- computations. The tree shape allows permutations to share common prefixes.
@@ -64,9 +62,9 @@ perms (Nil x) = pure x
 perms ps      = eps . asum . map split . firsts $ ps
   where
     split :: Effects f a -> f a
-    split ((_, R.Nil) :- _) = empty
-    split ((_, R.Cons (Just z) R.Nil) :- ps') = perms (($ z) <$> ps')
-    split ((act, R.Cons _ s) :- ps') = act <**> perms ((act, s) :- ((.) <$> ps'))
+    split (Cons _ R.Nil _) = empty
+    split (Cons _ (R.Cons (Just z) R.Nil) ps') = perms (($ z) <$> ps')
+    split (Cons act (R.Cons _ s) ps') = act <**> perms (Cons act s ((.) <$> ps'))
 
     eps :: f a -> f a
     eps =
@@ -82,10 +80,10 @@ perms ps      = eps . asum . map split . firsts $ ps
 -- that was moved to the front.
 firsts :: Effects f a -> [Effects f a]
 firsts (Nil _) = []
-firsts (freq :- ps) =
-  (freq :- ps) : map (\ps' -> swap (freq :- ps')) (firsts ps)
+firsts (Cons a r ps) =
+  (Cons a r ps) : map (\ps' -> swap (Cons a r ps')) (firsts ps)
 
 -- | Swaps the first two elements of the list, if they exist.
 swap :: Effects f a -> Effects f a
-swap (p0 :- p1 :- ps) = p1 :- p0 :- fmap flip ps
+swap (Cons a1 r1 (Cons a2 r2 ps)) = Cons a2 r2 (Cons a1 r1 (fmap flip ps))
 swap ps = ps
