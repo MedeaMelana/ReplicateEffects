@@ -6,7 +6,8 @@ module Control.Applicative.Permute ( Effects, perms, (*.) ) where
 import Prelude hiding (length, sequence)
 import Control.Applicative hiding (some, many)
 import Data.Foldable
-import Control.Replicate
+import Control.Replicate hiding (Nil)
+import qualified Control.Replicate as R
 
 -- | A chain of effectful @f@-computations with composite result @a@.
 -- Individual computations (lifted into @Effects@ using '*.' below) have their
@@ -52,7 +53,7 @@ effectsMatchEpsilon :: Effects f a -> Maybe a
 effectsMatchEpsilon eff =
   case eff of
     Nil x                -> Just x
-    (_, Replicate mz _) :- ps -> mz <**> effectsMatchEpsilon ps
+    (_, Cons mz _) :- ps -> mz <**> effectsMatchEpsilon ps
 
 -- | Build a tree (using '<|>' for branching) of all permutations of the
 -- computations. The tree shape allows permutations to share common prefixes.
@@ -63,9 +64,9 @@ perms (Nil x) = pure x
 perms ps      = eps . asum . map split . firsts $ ps
   where
     split :: Effects f a -> f a
-    split ((_, Replicate Nothing Nothing) :- _)    = empty
-    split ((_, Replicate (Just z) Nothing) :- ps') = perms (($ z) <$> ps')
-    split ((act, Replicate _ (Just s)) :- ps')     = act <**> perms ((act, s) :- ((.) <$> ps'))
+    split ((_, R.Nil) :- _) = empty
+    split ((_, R.Cons (Just z) R.Nil) :- ps') = perms (($ z) <$> ps')
+    split ((act, R.Cons _ s) :- ps') = act <**> perms ((act, s) :- ((.) <$> ps'))
 
     eps :: f a -> f a
     eps =

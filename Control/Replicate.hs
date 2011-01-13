@@ -36,22 +36,14 @@ import Control.Category
 -- occur. @a@ is the result type of a single atomic action. @b@ is the
 -- composite result type after executing the action a number of times allowed
 -- by this set.
-data Replicate a b = Replicate
-  {
-    -- | Whether zero occurrences are allowed. If so, a composite result is
-    -- available immediately.
-    rZero :: Maybe b,
-
-    -- | Whether at least one occurrence is allowed. If so, the new frequency 
-    -- set models all the old (positive) frequencies decreased by one. Its 
-    -- composite result accepts the result of executing that one action, to return
-    -- the final composite result.
-    rSucc :: Maybe (Replicate a (a -> b))
-  }
+data Replicate a b
+  = Nil
+  | Cons (Maybe b) (Replicate a (a -> b))
 
 -- | Map over the composite result type.
 instance Functor (Replicate a) where
-  fmap f (Replicate mzer msuc) = Replicate (f <$> mzer) (fmap (f .) <$> msuc)
+  fmap _ Nil = Nil
+  fmap f (Cons mx xs) = Cons (f <$> mx) (fmap (f .) xs)
 
 -- | Pairwise addition.
 -- 
@@ -70,11 +62,11 @@ instance Applicative (Replicate a) where
   
   -- lowerBound (f1 <*> f2) = lowerBound f1 + lowerBound f2
   -- upperBound (f1 <*> f2) = upperBound f1 + upperBound f2
-  Replicate mz1 ms1 <*> fr  =  -- 0 + n = n
-                               maybe empty (<$> fr) mz1
-                           <|> -- (1 + m) + n = 1 + (m + n)
-                               maybe empty (\s1 -> Replicate Nothing $ Just (flip <$> s1 <*> fr)) ms1
-
+  Nil <*> _ = Nil
+  Cons mx xs <*> ys =  -- 0 + n = n
+                       maybe empty (<$> ys) mx
+                   <|> -- (1 + m) + n = 1 + (m + n)
+                       Cons Nothing (flip <$> xs <*> ys)
 
 -- | 'empty' is the empty set {} of allowed occurrences. Not even performing
 -- an action zero times is allowed in that case.
@@ -83,34 +75,34 @@ instance Applicative (Replicate a) where
 -- 'between' 3 5@ is equivalent to @'between' 2 5@. Again, in case of overlap,
 -- 'rZero's from the left operand are favored.
 instance Alternative (Replicate a) where
-  empty = Replicate Nothing Nothing
+  empty = Nil
   
-  Replicate mz1 ms1 <|> Replicate mz2 ms2 =
-    -- Kinda tricky. <|> on Maybes discards the right operand if the left is a
-    -- Just. mappend, however, uses both operands if it can.
-    Replicate (mz1 <|> mz2) (ms1 `mappend` ms2)
+  Nil <|> ys = ys
+  xs <|> Nil = xs
+  Cons mx xs <|> Cons my ys =
+    -- <|> on Maybes discards the right operand if the left is a Just.
+    Cons (mx <|> my) (xs <|> ys)
 
 -- | Behaves exactly as the 'Alternative' instance.
 instance Monoid (Replicate a b) where
   mempty  = empty
   mappend = (<|>)
 
--- And maybe even instance Monad (Replicate a) ??
-
 -- | Pairwise multiplication.
 instance Category Replicate where
   id = one
-  Replicate mz1 ms1 . fr  =  -- 0 * n = 0
-                             maybe empty zero mz1
-                         <|> -- (m + 1) * n = m * n + n
-                             maybe empty (\s1 -> (s1 . fr) <*> fr) ms1
+  Nil        . _   = Nil
+  Cons mx xs . ys  =  -- 0 * n = 0
+                      maybe empty zero mx
+                  <|> -- (m + 1) * n = m * n + n
+                      (xs . ys) <*> ys
 
 
 -- | Run an action a certain number of times, using '<|>' to branch (at the
 -- deepest point possible) if multiple frequencies are allowed.
 run :: Alternative f => Replicate a b -> f a -> f b
-run (Replicate mzer msuc) p  =  maybe empty (\f -> p <**> run f p) msuc
-                            <|> maybe empty pure mzer
+run Nil          _ = empty
+run (Cons mx xs) p = p <**> run xs p <|> maybe empty pure mx
 
 -- | Enumerate all the numbers of allowed occurrences encoded by the
 -- replication scheme.
@@ -119,19 +111,18 @@ sizes = sizes' 0
   where
     -- Type signature is mandatory here.
     sizes' :: Num num => num -> Replicate a b -> [num]
-    sizes' n (Replicate mz ms) =
-      maybe [] (const [n]) mz ++
-      maybe [] (sizes' (n + 1)) ms
+    sizes' n Nil = []
+    sizes' n (Cons mx xs) = maybe [] (const [n]) mx ++ sizes' (n + 1) xs
 
 
 
 -- | Perform an action exactly zero times.
 zero :: b -> Replicate a b
-zero x = Replicate (Just x) Nothing
+zero x = Cons (Just x) Nil
 
 -- | Perform an action exactly one time.
 one :: Replicate a a
-one = Replicate Nothing (Just (zero id))
+one = Cons Nothing (zero id)
 
 -- | Perform an action exactly two times.
 two :: Replicate a (a, a)
