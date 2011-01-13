@@ -26,9 +26,10 @@ module Control.Replicate (
   one, two, three, opt, many, some, exactly, atLeast, atMost, between, even, odd
   ) where
 
-import Prelude hiding (even, odd)
+import Prelude hiding (even, odd, id, (.))
 import Data.Monoid
 import Control.Applicative hiding (many, some)
+import Control.Category
 
 
 -- | A set of frequencies which with an applicative action is allowed to
@@ -52,9 +53,11 @@ data Replicate a b = Replicate
 instance Functor (Replicate a) where
   fmap f (Replicate mzer msuc) = Replicate (f <$> mzer) (fmap (f .) <$> msuc)
 
--- | 'pure' is the singleton set of exactly zero occurrences {0}. '<*>'
--- produces the set of occurrences that are the sums of all possible pairs
--- from the two operands. 
+-- | Pairwise addition.
+-- 
+-- 'pure' is the singleton set of exactly zero occurrences {0}. '<*>' produces
+-- the set of occurrences that are the sums of all possible pairs from the two
+-- operands. 
 -- 
 -- An example: sequencing @'exactly' 2@ {2} with @'exactly' 3@ {3} produces
 -- {2+3} = {5}.
@@ -67,8 +70,10 @@ instance Applicative (Replicate a) where
   
   -- lowerBound (f1 <*> f2) = lowerBound f1 + lowerBound f2
   -- upperBound (f1 <*> f2) = upperBound f1 + upperBound f2
-  Replicate mz1 ms1 <*> fr  =  maybe empty (<$> fr) mz1
-                           <|> maybe empty (\s1 -> Replicate Nothing $ Just (flip <$> s1 <*> fr)) ms1
+  Replicate mz1 ms1 <*> fr  =  -- 0 + n = n
+                               maybe empty (<$> fr) mz1
+                           <|> -- (1 + m) + n = 1 + (m + n)
+                               maybe empty (\s1 -> Replicate Nothing $ Just (flip <$> s1 <*> fr)) ms1
 
 
 -- | 'empty' is the empty set {} of allowed occurrences. Not even performing
@@ -91,6 +96,14 @@ instance Monoid (Replicate a b) where
   mappend = (<|>)
 
 -- And maybe even instance Monad (Replicate a) ??
+
+-- | Pairwise multiplication.
+instance Category Replicate where
+  id = one
+  Replicate mz1 ms1 . fr  =  -- 0 * n = 0
+                             maybe empty zero mz1
+                         <|> -- (m + 1) * n = m * n + n
+                             maybe empty (\s1 -> (s1 . fr) <*> fr) ms1
 
 
 -- | Run an action a certain number of times, using '<|>' to branch (at the
