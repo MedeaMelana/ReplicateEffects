@@ -3,10 +3,13 @@ module ParsecEx where
 import Control.Replicate
 import Control.Applicative.Permute
 
+import Prelude hiding (id, (.))
+import Control.Category
+
 import Data.Traversable
 import Control.Applicative hiding (some, many)
 
-import Text.Parsec hiding (many, between)
+import Text.Parsec hiding ((<|>), many, between)
 
 
 -- | Expect exactly one of each of the 26 letters in the alphabet, in any
