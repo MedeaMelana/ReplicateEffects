@@ -1,7 +1,7 @@
 default: run
 
 run:
-	ghci -Wall ParsecEx
+	ghci -Wall Control.Replicate
 
 configure:
 	cabal configure
@@ -10,4 +10,4 @@ docs: configure
 	cabal haddock
 
 opendocs: docs
-	open dist/doc/html/PermuteEffects/index.html
+	open dist/doc/html/ReplicateEffects/index.html
