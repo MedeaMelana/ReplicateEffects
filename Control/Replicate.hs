@@ -95,7 +95,7 @@ instance Category Replicate where
   Cons mx xs . ys  =  -- 0 * n = 0
                       maybe empty zero mx
                   <|> -- (m + 1) * n = m * n + n
-                      (xs . ys) <*> ys
+                      ys <**> (xs . ys)
 
 
 -- | Run an action a certain number of times, using '<|>' to branch (at the
