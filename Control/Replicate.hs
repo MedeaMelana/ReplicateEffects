@@ -23,7 +23,7 @@ module Control.Replicate (
   Replicate(..), run, sizes,
   
   -- * Common replication schemes
-  one, two, three, opt, many, some, exactly, atLeast, atMost, between, even, odd
+  zero, one, two, three, opt, many, some, exactly, atLeast, atMost, between, even, odd
   ) where
 
 import Prelude hiding (even, odd, id, (.))
