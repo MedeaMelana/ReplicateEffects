@@ -4,20 +4,67 @@
 -- @Control.Applicative@) from any actual applicative actions. It offers
 -- composable building blocks for expressing the number (or numbers) of times
 -- an action should be executed. The building blocks themselves are composed
--- using the standard 'Applicative' and 'Alternative' combinators.
+-- using the standard 'Applicative', 'Alternative' and 'Category' combinators.
+-- Replication schemes can then be 'run' to produce actual actions.
 --
--- Some examples help see how this works:
+-- Some examples help see how this works. One of the simplest schemes is
+-- 'one':
+--
+-- > one :: Replicate a a
+--
+-- @run one p@ is equivalent to just @p@.
+--
+-- Schemes can be summed by composing them in applicative fashion. In the
+-- following example, the resulting tuple type makes it clear that the action
+-- has been run twice and no information is lost:
 --
 -- > two :: Replicate a (a, a)
 -- > two = (,) <$> one <*> one
--- >
--- > many :: Replicate a [a]
--- > many = zero [] <|> some
--- >
--- > some :: Replicate a [a]
--- > some = (:) <$> one <*> many
 --
--- Replication schemes can then be 'run' to produce actual actions.
+-- @run two p@ is equivalent to @(,) \<$\> p \<*\> p@.
+--
+-- Things get more interesting if we use the choice combinator @\<|\>@ to form
+-- the union of two schemes.
+--
+-- > oneOrTwo :: Replicate a (Either a (a, a))
+-- > oneOrTwo = Left <$> one <|> Right <$> two
+--
+-- Running schemes that allow multiple frequencies expand to actions that
+-- always use @\<|\>@ as late as possible. Since @oneOrTwo@ runs an action at
+-- least once, we can start by running the action once immediately and
+-- only then choose whether we want to stop there or run it a second time.
+-- Running it expands to:
+--
+-- > \p -> p <**>  (  -- Either run the action again and yield Right ... 
+-- >                  (\y x -> Right (x, y)) <$> p
+-- >              <|> -- ... or stop here and yield Left.
+-- >                  pure Left
+-- >               )
+--
+-- Replication schemes can be thought of as sets of Peano numerals. If there
+-- is overlap between the two operands to @\<|\>@, the overlap collapses and
+-- is lost in the result. For example, @'between' 3 5 \<|\> between 4 6@ is
+-- equivalent to @between 3 6@, a scheme that runs an action 3, 4, 5 or 6
+-- times.
+--
+-- Finally, schemes can be multiplied by composing them with the dot operator
+-- '.' from @Control.Category@.
+--
+-- > twiceThree :: Replicate a ((a, a, a), (a, a, a))
+-- > twiceThree = two . three
+-- >
+-- > thriceTwo :: Replicate a ((a, a), (a, a), (a, a))
+-- > thriceTwo = three . two
+--
+-- If @.@'s operands allow multiple frequencies, the result will allow the
+-- products of all pairs of frequencies from the operands. We can use this to
+-- e.g. produce all even numbers of occurrences:
+--
+-- > even :: Replicate a [(a, a)]
+-- > even = many . two
+--
+-- In this example @many@ behaves like the standard Applicative @many@,
+-- allowing an action to be run any number of {0, 1..} times.
 module Control.Replicate (
   -- * Type constructor @Replicate@
   Replicate(..), run, sizes,
@@ -31,7 +78,7 @@ import Data.Monoid
 import Control.Applicative hiding (many, some)
 import Control.Category
 
-
+aap p = p <**> ((\y x -> Right (x, y)) <$> p <|> pure Left)
 -- | A set of frequencies which with an applicative action is allowed to
 -- occur. @a@ is the result type of a single atomic action. @b@ is the
 -- composite result type after executing the action a number of times allowed
@@ -47,9 +94,11 @@ instance Functor (Replicate a) where
 
 -- | Pairwise addition.
 -- 
--- 'pure' is the singleton set of exactly zero occurrences {0}. '<*>' produces
--- the set of occurrences that are the sums of all possible pairs from the two
--- operands. 
+-- 'pure' is the singleton set of exactly zero occurrences {0}.  It is
+-- equivalent to 'zero'.
+--
+-- '<*>' produces the set of occurrences that are the sums of all possible
+-- pairs from the two operands. 
 -- 
 -- An example: sequencing @'exactly' 2@ {2} with @'exactly' 3@ {3} produces
 -- {2+3} = {5}.
