@@ -70,7 +70,7 @@ module Control.Replicate (
   Replicate(..), run, sizes,
   
   -- * Common replication schemes
-  zero, one, two, three, opt, many, some, exactly, atLeast, atMost, between, even, odd
+  zero, one, two, three, opt, many, some, exactly, atLeast, atMost, between, forever
   ) where
 
 import Prelude hiding (even, odd, id, (.))
@@ -218,3 +218,7 @@ even = zero [] <|> (\x y zs -> x : y : zs) <$> one <*> one <*> even
 -- | Perform an action any odd number of times.
 odd :: Replicate a [a]
 odd = (:) <$> one <*> even
+
+-- | Repeat an action forever.
+forever :: Replicate a b
+forever = Cons Nothing (const <$> forever)
