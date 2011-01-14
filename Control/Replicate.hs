@@ -105,7 +105,8 @@ instance Functor (Replicate a) where
 -- 
 -- Another example: sequencing the set {0, 1} ('opt') with itself produces
 -- {0+0, 0+1, 1+0, 1+1} = {0, 1, 1, 2} = {0, 1, 2}. In case of overlap, like
--- in this example, '<*>' favors the 'rZero's from the left operand.
+-- in this example, '<*>' favors the heads (of type @Maybe b@) from the left
+-- operand.
 instance Applicative (Replicate a) where
   pure = zero
   
@@ -122,7 +123,7 @@ instance Applicative (Replicate a) where
 --
 -- '<|>' computes the union of the two sets. For example, @'between' 2 4 '<|>'
 -- 'between' 3 5@ is equivalent to @'between' 2 5@. Again, in case of overlap,
--- 'rZero's from the left operand are favored.
+-- head values from the left operand are favored.
 instance Alternative (Replicate a) where
   empty = Nil
   
