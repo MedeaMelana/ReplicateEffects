@@ -111,7 +111,7 @@ sizes = sizes' 0
   where
     -- Type signature is mandatory here.
     sizes' :: Num num => num -> Replicate a b -> [num]
-    sizes' n Nil = []
+    sizes' _ Nil = []
     sizes' n (Cons mx xs) = maybe [] (const [n]) mx ++ sizes' (n + 1) xs
 
 
