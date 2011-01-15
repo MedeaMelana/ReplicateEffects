@@ -237,14 +237,6 @@ atMost n = zero [] <|> (:) <$> one <*> atMost (n - 1)
 between :: Int -> Int -> Replicate a [a]
 between m n = (++) <$> exactly m <*> atMost (n - m)
 
--- | Perform an action any even number of times.
-even :: Replicate a [a]
-even = zero [] <|> (\x y zs -> x : y : zs) <$> one <*> one <*> even
-
--- | Perform an action any odd number of times.
-odd :: Replicate a [a]
-odd = (:) <$> one <*> even
-
 -- | Repeat an action forever.
 forever :: Replicate a b
 forever = Cons Nothing (const <$> forever)
