@@ -5,14 +5,15 @@
 -- composable building blocks for expressing the number (or numbers) of times
 -- an action should be executed. The building blocks themselves are composed
 -- using the standard 'Applicative', 'Alternative' and 'Category' combinators.
--- Replication schemes can then be 'run' to produce actual actions.
+-- Replication schemes can then be run with '*!' and '*?' to produce actual
+-- actions.
 --
 -- Some examples help see how this works. One of the simplest schemes is
 -- 'one':
 --
 -- > one :: Replicate a a
 --
--- @run one p@ is equivalent to just @p@.
+-- @one *! p@ is equivalent to just @p@.
 --
 -- Schemes can be summed by composing them in applicative fashion. In the
 -- following example, the resulting tuple type makes it clear that the action
@@ -21,7 +22,7 @@
 -- > two :: Replicate a (a, a)
 -- > two = (,) <$> one <*> one
 --
--- @run two p@ is equivalent to @(,) \<$\> p \<*\> p@.
+-- @two *! p@ is equivalent to @(,) \<$\> p \<*\> p@.
 --
 -- Things get more interesting if we use the choice combinator @\<|\>@ to form
 -- the union of two schemes.
@@ -33,7 +34,7 @@
 -- always use @\<|\>@ as late as possible. Since @oneOrTwo@ runs an action at
 -- least once, we can start by running the action once immediately and
 -- only then choose whether we want to stop there or run it a second time.
--- Running it expands to:
+-- Running it with '*!' expands to:
 --
 -- > \p -> p <**>  (  -- Either run the action again and yield Right ... 
 -- >                  (\y x -> Right (x, y)) <$> p
@@ -46,6 +47,17 @@
 -- is lost in the result. For example, @'between' 3 5 \<|\> between 4 6@ is
 -- equivalent to @between 3 6@, a scheme that runs an action 3, 4, 5 or 6
 -- times.
+--
+-- The example above made the second @p@ the first choice and the @pure@
+-- option the second choice to @\<|\>@. In some cases the other way around is
+-- preferred. This is what '*?' is for; it prefers running an action fewer
+-- times over more times. Running @oneOrTwo@ with it is equivalent to:
+--
+-- > \p -> p <**>  (  -- Either stop here and yield Left ...
+-- >                  pure Left
+-- >              <|> -- ... or run the action again and yield Right.
+-- >                  (\y x -> Right (x, y)) <$> p
+-- >               )
 --
 -- Finally, schemes can be multiplied by composing them with the dot operator
 -- '.' from @Control.Category@.
