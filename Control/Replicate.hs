@@ -78,7 +78,6 @@ import Data.Monoid
 import Control.Applicative hiding (many, some)
 import Control.Category
 
-aap p = p <**> ((\y x -> Right (x, y)) <$> p <|> pure Left)
 -- | A set of frequencies which with an applicative action is allowed to
 -- occur. @a@ is the result type of a single atomic action. @b@ is the
 -- composite result type after executing the action a number of times allowed
