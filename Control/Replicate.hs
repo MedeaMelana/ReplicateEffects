@@ -94,8 +94,8 @@ instance Functor (Replicate a) where
 
 -- | Pairwise addition.
 -- 
--- 'pure' is the singleton set of exactly zero occurrences {0}.  It is
--- equivalent to 'zero'.
+-- 'pure' is the singleton set of exactly zero occurrences {0}. It is
+-- synonymous with 'zero'.
 --
 -- '<*>' produces the set of occurrences that are the sums of all possible
 -- pairs from the two operands. 
@@ -139,6 +139,12 @@ instance Monoid (Replicate a b) where
   mappend = (<|>)
 
 -- | Pairwise multiplication.
+--
+-- 'id' is the singleton set of exactly one occurrence {1}. It is synonymous
+-- with 'one'.
+--
+-- '.' produces the set of occurrences that are the products of all possible
+-- pairs from the two operands.
 instance Category Replicate where
   id = one
   Nil        . _   = Nil
