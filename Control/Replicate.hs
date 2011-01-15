@@ -64,10 +64,10 @@
 -- > even = many . two
 --
 -- In this example @many@ behaves like the standard Applicative @many@,
--- allowing an action to be run any number of {0, 1..} times.
+-- allowing an action to be run any number of {0, 1, ..} times.
 module Control.Replicate (
   -- * Type constructor @Replicate@
-  Replicate(..), run, sizes,
+  Replicate(..), (*!), (*?), sizes,
   
   -- * Common replication schemes
   zero, one, two, three, opt, many, some, exactly, atLeast, atMost, between, forever
@@ -154,10 +154,18 @@ instance Category Replicate where
 
 
 -- | Run an action a certain number of times, using '<|>' to branch (at the
--- deepest point possible) if multiple frequencies are allowed.
-run :: Alternative f => Replicate a b -> f a -> f b
-run Nil          _ = empty
-run (Cons mx xs) p = p <**> run xs p <|> maybe empty pure mx
+-- deepest point possible) if multiple frequencies are allowed. Use greedy
+-- choices: always make the longer alternative the left operand of @\<|\>@.
+(*!) :: Alternative f => Replicate a b -> f a -> f b
+Nil        *! _ = empty
+Cons mx xs *! p = p <**> (xs *! p) <|> maybe empty pure mx
+
+-- | Run an action a certain number of times, using '<|>' to branch (at the
+-- deepest point possible) if multiple frequencies are allowed. Use lazy
+-- choices: always make the 'pure' alternative the left operand of @\<|\>@.
+(*?) :: Alternative f => Replicate a b -> f a -> f b
+Nil        *? _ = empty
+Cons mx xs *? p = maybe empty pure mx <|> p <**> (xs *? p)
 
 -- | Enumerate all the numbers of allowed occurrences encoded by the
 -- replication scheme.
