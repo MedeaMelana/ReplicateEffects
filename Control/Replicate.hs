@@ -90,6 +90,7 @@ import Prelude hiding (even, odd, id, (.))
 import Data.Monoid
 import Control.Applicative hiding (many, some)
 import Control.Category
+import Control.Arrow
 
 -- | A set of frequencies which with an applicative action is allowed to
 -- occur. @a@ is the result type of a single atomic action. @b@ is the
@@ -161,6 +162,20 @@ instance Category Replicate where
   id  = one
   (.) = (*?)
 
+-- | As 'Replicate' is both 'Applicative' and 'Category', it is also an 'Arrow'.
+instance Arrow Replicate where
+  arr f    = f   <$> id
+  f &&& g  = (,) <$> f <*> g
+  f *** g  = f . arr fst &&& g . arr snd
+  first  f = f  *** id
+  second f = id *** f
+
+-- | Behaves exactly as the 'Alternative' instance.
+instance ArrowZero Replicate where
+  zeroArrow = empty
+-- | Behaves exactly as the 'Alternative' instance.
+instance ArrowPlus Replicate where
+  (<+>) = (<|>)
 
 -- | Run an action a certain number of times, using '<|>' to branch (at the
 -- deepest point possible) if multiple frequencies are allowed. Use greedy
