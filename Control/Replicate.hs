@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 -- | Composable replication schemes of applicative actions.
 --
 -- This module separates common combinators such as @some@ and @many@ (from
@@ -94,14 +95,14 @@ import Control.Category
 -- occur. @a@ is the result type of a single atomic action. @b@ is the
 -- composite result type after executing the action a number of times allowed
 -- by this set.
-data Replicate a b
-  = Nil
-  | Cons (Maybe b) (Replicate a (a -> b))
+data Replicate a b where
+  Nil :: Replicate a b
+  Cons :: (c -> b) -> Maybe c -> Replicate a (a -> c) -> Replicate a b
 
 -- | Map over the composite result type.
 instance Functor (Replicate a) where
   fmap _ Nil = Nil
-  fmap f (Cons mx xs) = Cons (f <$> mx) (fmap (f .) xs)
+  fmap f (Cons fx mx xs) = Cons (f . fx) mx xs
 
 -- | Pairwise addition.
 -- 
@@ -124,10 +125,10 @@ instance Applicative (Replicate a) where
   -- lowerBound (f1 <*> f2) = lowerBound f1 + lowerBound f2
   -- upperBound (f1 <*> f2) = upperBound f1 + upperBound f2
   Nil <*> _ = Nil
-  Cons mx xs <*> ys =  -- 0 + n = n
-                       maybe empty (<$> ys) mx
+  Cons fx mx xs <*> ys =  -- 0 + n = n
+                       maybe empty ((<$> ys) . fx) mx
                    <|> -- (1 + m) + n = 1 + (m + n)
-                       Cons Nothing (flip <$> xs <*> ys)
+                       Cons id Nothing ((\x y z -> fx (x z) y) <$> xs <*> ys)
 
 -- | 'empty' is the empty set {} of allowed occurrences. Not even performing
 -- an action zero times is allowed in that case.
@@ -140,9 +141,9 @@ instance Alternative (Replicate a) where
   
   Nil <|> ys = ys
   xs <|> Nil = xs
-  Cons mx xs <|> Cons my ys =
+  Cons fx mx xs <|> Cons fy my ys =
     -- <|> on Maybes discards the right operand if the left is a Just.
-    Cons (mx <|> my) (xs <|> ys)
+    Cons id (fx <$> mx <|> fy <$> my) (fmap fx <$> xs <|> fmap fy <$> ys)
 
 -- | Behaves exactly as the 'Alternative' instance.
 instance Monoid (Replicate a b) where
@@ -165,15 +166,15 @@ instance Category Replicate where
 -- deepest point possible) if multiple frequencies are allowed. Use greedy
 -- choices: always make the longer alternative the left operand of @\<|\>@.
 (*!) :: Alternative f => Replicate a b -> f a -> f b
-Nil        *! _ = empty
-Cons mx xs *! p = p <**> (xs *! p) <|> maybe empty pure mx
+Nil           *! _ = empty
+Cons fx mx xs *! p = p <**> ((fmap fx <$> xs) *! p) <|> maybe empty (pure . fx) mx
 
 -- | Run an action a certain number of times, using '<|>' to branch (at the
 -- deepest point possible) if multiple frequencies are allowed. Use lazy
 -- choices: always make the 'pure' alternative the left operand of @\<|\>@.
 (*?) :: Alternative f => Replicate a b -> f a -> f b
-Nil        *? _ = empty
-Cons mx xs *? p = maybe empty pure mx <|> p <**> (xs *? p)
+Nil           *? _ = empty
+Cons fx mx xs *? p = maybe empty (pure . fx) mx <|> p <**> ((fmap fx <$> xs) *? p)
 
 -- | Enumerate all the numbers of allowed occurrences encoded by the
 -- replication scheme.
@@ -183,17 +184,17 @@ sizes = sizes' 0
     -- Type signature is mandatory here.
     sizes' :: Num num => num -> Replicate a b -> [num]
     sizes' _ Nil = []
-    sizes' n (Cons mx xs) = maybe [] (const [n]) mx ++ sizes' (n + 1) xs
+    sizes' n (Cons _ mx xs) = maybe [] (const [n]) mx ++ sizes' (n + 1) xs
 
 
 
 -- | Perform an action exactly zero times.
 zero :: b -> Replicate a b
-zero x = Cons (Just x) Nil
+zero x = Cons id (Just x) Nil
 
 -- | Perform an action exactly one time.
 one :: Replicate a a
-one = Cons Nothing (zero id)
+one = Cons id Nothing (zero id)
 
 -- | Perform an action exactly two times.
 two :: Replicate a (a, a)
@@ -235,4 +236,4 @@ between m n = (++) <$> exactly m <*> atMost (n - m)
 
 -- | Repeat an action forever.
 forever :: Replicate a b
-forever = Cons Nothing (const <$> forever)
+forever = Cons id Nothing (const <$> forever)
