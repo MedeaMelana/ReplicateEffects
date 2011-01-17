@@ -157,12 +157,8 @@ instance Monoid (Replicate a b) where
 -- '.' produces the set of occurrences that are the products of all possible
 -- pairs from the two operands.
 instance Category Replicate where
-  id = one
-  Nil        . _   = Nil
-  Cons mx xs . ys  =  -- 0 * n = 0
-                      maybe empty zero mx
-                  <|> -- (m + 1) * n = m * n + n
-                      ys <**> (xs . ys)
+  id  = one
+  (.) = (*?)
 
 
 -- | Run an action a certain number of times, using '<|>' to branch (at the
