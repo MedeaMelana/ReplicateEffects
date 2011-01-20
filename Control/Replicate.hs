@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs, Rank2Types #-}
 -- | Composable replication schemes of applicative actions.
 --
 -- This module separates common combinators such as @some@ and @many@ (from
@@ -92,6 +92,7 @@ import Control.Applicative hiding (many, some)
 import Control.Category
 import Control.Arrow
 
+
 -- | A set of frequencies which with an applicative action is allowed to
 -- occur. @a@ is the result type of a single atomic action. @b@ is the
 -- composite result type after executing the action a number of times allowed
@@ -99,6 +100,19 @@ import Control.Arrow
 data Replicate a b where
   Nil :: Replicate a b
   Cons :: (c -> b) -> Maybe c -> Replicate a (a -> c) -> Replicate a b
+
+-- Fold the Replicate list given:
+-- * an "empty" value
+-- * a "pure" function
+-- * a function to combine the value of the recursive call into the result
+foldReplicate :: (forall c. f c) 
+              -> (forall c. c -> f c) 
+              -> (forall c. f c -> f (a -> c) -> f c) 
+              -> Replicate a b -> f b
+foldReplicate e _ _ Nil = e
+foldReplicate e p f (Cons fx mx xs)  =  maybe e (p . fx) mx 
+                                    `f` foldReplicate e p f (fmap fx <$> xs)
+
 
 -- | Map over the composite result type.
 instance Functor (Replicate a) where
@@ -177,30 +191,30 @@ instance ArrowZero Replicate where
 instance ArrowPlus Replicate where
   (<+>) = (<|>)
 
+
 -- | Run an action a certain number of times, using '<|>' to branch (at the
 -- deepest point possible) if multiple frequencies are allowed. Use greedy
 -- choices: always make the longer alternative the left operand of @\<|\>@.
 (*!) :: Alternative f => Replicate a b -> f a -> f b
-Nil           *! _ = empty
-Cons fx mx xs *! p = p <**> ((fmap fx <$> xs) *! p) <|> maybe empty (pure . fx) mx
+r *! p = foldReplicate empty pure (\x xs -> p <**> xs <|> x) r
 
 -- | Run an action a certain number of times, using '<|>' to branch (at the
 -- deepest point possible) if multiple frequencies are allowed. Use lazy
 -- choices: always make the 'pure' alternative the left operand of @\<|\>@.
 (*?) :: Alternative f => Replicate a b -> f a -> f b
-Nil           *? _ = empty
-Cons fx mx xs *? p = maybe empty (pure . fx) mx <|> p <**> ((fmap fx <$> xs) *? p)
+r *? p = foldReplicate empty pure (\x xs -> x <|> p <**> xs) r
+
+
+newtype Sizes a = Sizes { getSizes :: Int -> [Int] }
 
 -- | Enumerate all the numbers of allowed occurrences encoded by the
 -- replication scheme.
-sizes :: Num num => Replicate a b -> [num]
-sizes = sizes' 0
-  where
-    -- Type signature is mandatory here.
-    sizes' :: Num num => num -> Replicate a b -> [num]
-    sizes' _ Nil = []
-    sizes' n (Cons _ mx xs) = maybe [] (const [n]) mx ++ sizes' (n + 1) xs
-
+sizes :: Replicate a b -> [Int]
+sizes = ($ 0) . getSizes . foldSizes where
+  foldSizes = foldReplicate 
+    (Sizes (const []))
+    (const (Sizes return))
+    (\(Sizes xs) (Sizes fs) -> Sizes (\n -> xs n ++ fs (n + 1)))
 
 
 -- | Perform an action exactly zero times.
