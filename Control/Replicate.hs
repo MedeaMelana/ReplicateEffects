@@ -103,15 +103,15 @@ data Replicate a b where
 
 -- Fold the Replicate list given:
 -- * an "empty" value
--- * a "pure" function
--- * a function to combine the value of the recursive call into the result
+-- * a function to combine the Cons value into the result
+-- * a function to convert the value of the recursive call to the expected type
 foldReplicate :: (forall c. f c) 
-              -> (forall c. c -> f c) 
-              -> (forall c. f c -> f (a -> c) -> f c) 
+              -> (forall c. c -> f c -> f c) 
+              -> (forall c. f (a -> c) -> f c) 
               -> Replicate a b -> f b
 foldReplicate e _ _ Nil = e
-foldReplicate e p f (Cons fx mx xs)  =  maybe e (p . fx) mx 
-                                    `f` foldReplicate e p f (fmap fx <$> xs)
+foldReplicate e f g (Cons fx mx xs) = 
+  maybe id (f . fx) mx . g . foldReplicate e f g . fmap (fx .) $ xs
 
 
 -- | Map over the composite result type.
@@ -196,25 +196,23 @@ instance ArrowPlus Replicate where
 -- deepest point possible) if multiple frequencies are allowed. Use greedy
 -- choices: always make the longer alternative the left operand of @\<|\>@.
 (*!) :: Alternative f => Replicate a b -> f a -> f b
-r *! p = foldReplicate empty pure (\x xs -> p <**> xs <|> x) r
+r *! p = foldReplicate empty (\x xs -> xs <|> pure x) (p <**>) r
 
 -- | Run an action a certain number of times, using '<|>' to branch (at the
 -- deepest point possible) if multiple frequencies are allowed. Use lazy
 -- choices: always make the 'pure' alternative the left operand of @\<|\>@.
 (*?) :: Alternative f => Replicate a b -> f a -> f b
-r *? p = foldReplicate empty pure (\x xs -> x <|> p <**> xs) r
+r *? p = foldReplicate empty (\x xs -> pure x <|> xs) (p <**>) r
 
-
-newtype Sizes a = Sizes { getSizes :: Int -> [Int] }
 
 -- | Enumerate all the numbers of allowed occurrences encoded by the
 -- replication scheme.
 sizes :: Replicate a b -> [Int]
-sizes = ($ 0) . getSizes . foldSizes where
-  foldSizes = foldReplicate 
-    (Sizes (const []))
-    (const (Sizes return))
-    (\(Sizes xs) (Sizes fs) -> Sizes (\n -> xs n ++ fs (n + 1)))
+sizes = ($ 0) . getConst . sizesFold where
+  sizesFold = foldReplicate 
+    (                Const (\_ -> []))
+    (\_ (Const g) -> Const (\n -> n : g n))
+    (\  (Const g) -> Const (\n -> g (n + 1)))
 
 
 -- | Perform an action exactly zero times.
