@@ -86,8 +86,9 @@ module Control.Replicate (
   zero, one, two, three, opt, many, some, exactly, atLeast, atMost, between, forever
   ) where
 
-import Prelude hiding (even, odd, id, (.))
+import Prelude hiding (even, odd, id, (.), foldr)
 import Data.Monoid
+import Data.Foldable
 import Control.Applicative hiding (many, some)
 import Control.Category
 import Control.Arrow
@@ -111,7 +112,7 @@ foldReplicate :: (forall c. f c)
               -> Replicate a b -> f b
 foldReplicate e _ _ Nil = e
 foldReplicate e f g (Cons fx mx xs) = 
-  maybe id (f . fx) mx . g . foldReplicate e f g . fmap (fx .) $ xs
+  foldr (f . fx) (g . foldReplicate e f g . fmap (fx .) $ xs) mx
 
 
 -- | Map over the composite result type.
@@ -141,9 +142,9 @@ instance Applicative (Replicate a) where
   -- upperBound (f1 <*> f2) = upperBound f1 + upperBound f2
   Nil <*> _ = Nil
   Cons fx mx xs <*> ys =  -- 0 + n = n
-                       maybe empty ((<$> ys) . fx) mx
+                       foldMap ((<$> ys) . fx) mx
                    <|> -- (1 + m) + n = 1 + (m + n)
-                       Cons id Nothing ((\x y z -> fx (x z) y) <$> xs <*> ys)
+                       Cons id empty ((\x y z -> fx (x z) y) <$> xs <*> ys)
 
 -- | 'empty' is the empty set {} of allowed occurrences. Not even performing
 -- an action zero times is allowed in that case.
@@ -217,11 +218,11 @@ sizes = ($ 0) . getConst . sizesFold where
 
 -- | Perform an action exactly zero times.
 zero :: b -> Replicate a b
-zero x = Cons id (Just x) Nil
+zero x = Cons id (pure x) Nil
 
 -- | Perform an action exactly one time.
 one :: Replicate a a
-one = Cons id Nothing (zero id)
+one = Cons id empty (zero id)
 
 -- | Perform an action exactly two times.
 two :: Replicate a (a, a)
@@ -263,4 +264,4 @@ between m n = (++) <$> exactly m <*> atMost (n - m)
 
 -- | Repeat an action forever.
 forever :: Replicate a b
-forever = Cons id Nothing (const <$> forever)
+forever = Cons id empty (const <$> forever)
