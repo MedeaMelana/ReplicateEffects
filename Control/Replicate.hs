@@ -1,5 +1,5 @@
-{-# LANGUAGE GADTs #-}
--- | Composable replication schemes of applicative actions.
+{-# LANGUAGE RankNTypes, FlexibleInstances, GeneralizedNewtypeDeriving #-}
+-- | Composable Replication schemes of applicative actions.
 --
 -- This module separates common combinators such as @some@ and @many@ (from
 -- @Control.Applicative@) from any actual applicative actions. It offers
@@ -80,15 +80,15 @@
 -- allowing an action to be run any number of {0, 1, ..} times.
 module Control.Replicate (
   -- * Type constructor @Replicate@
-  Replicate(..), (*!), (*?), sizes,
+  Replicate(..), sizes, dual,
   
-  -- * Common replication schemes
+  -- * Common Replication schemes
   zero, one, two, three, opt, many, some, exactly, atLeast, atMost, between, forever
   ) where
 
 import Prelude hiding (even, odd, id, (.), foldr)
-import Data.Monoid
-import Data.Foldable
+import Data.Monoid hiding (Endo(..))
+import Data.Function (fix)
 import Control.Applicative hiding (many, some)
 import Control.Category
 import Control.Arrow
@@ -98,25 +98,12 @@ import Control.Arrow
 -- occur. @a@ is the result type of a single atomic action. @b@ is the
 -- composite result type after executing the action a number of times allowed
 -- by this set.
-data Replicate a b where
-  Nil :: Replicate a b
-  Cons :: (c -> b) -> Maybe c -> Replicate a (a -> c) -> Replicate a b
-
--- Evaluate the Replicate list
-evalReplicate 
-  :: r                           -- an "empty" value
-  -> (b -> r -> r)               -- combine a head value into the result
-  -> (Replicate a (a -> b) -> r) -- convert the tail to the expected type
-  -> Replicate a b -> r
-evalReplicate e _    _   Nil = e
-evalReplicate _ cons rec (Cons fx mx xs) = 
-  foldr (cons . fx) (rec (fmap (fx .) xs)) mx
+newtype Replicate a b = Replicate { (*!) :: forall f. Alternative f => f a -> f b }
 
 
 -- | Map over the composite result type.
 instance Functor (Replicate a) where
-  fmap _ Nil = Nil
-  fmap f (Cons fx mx xs) = Cons (f . fx) mx xs
+  fmap f (Replicate g) = Replicate $ fmap f <$> g
 
 -- | Pairwise addition.
 -- 
@@ -133,15 +120,9 @@ instance Functor (Replicate a) where
 -- {0+0, 0+1, 1+0, 1+1} = {0, 1, 1, 2} = {0, 1, 2}. In case of overlap, like
 -- in this example, '<*>' favors the heads from the left operand.
 instance Applicative (Replicate a) where
-  pure = zero
+  pure x = Replicate $ pure (pure x)
+  Replicate f <*> Replicate x = Replicate $ liftA2 (<*>) f x
   
-  -- lowerBound (f1 <*> f2) = lowerBound f1 + lowerBound f2
-  -- upperBound (f1 <*> f2) = upperBound f1 + upperBound f2
-  (<*>) = evalReplicate 
-    (\    _  -> Nil) 
-    (\f r xs -> f <$> xs <|> r xs)                  -- 0 + n = n
-    (\fs  xs -> Cons id empty (flip <$> fs <*> xs)) -- (1 + m) + n = 1 + (m + n)
-
 -- | 'empty' is the empty set {} of allowed occurrences. Not even performing
 -- an action zero times is allowed in that case.
 --
@@ -149,14 +130,9 @@ instance Applicative (Replicate a) where
 -- 'between' 3 5@ is equivalent to @'between' 2 5@. Again, in case of overlap,
 -- head values from the left operand are favored.
 instance Alternative (Replicate a) where
-  empty = Nil
+  empty = Replicate $ pure empty
+  Replicate a <|> Replicate b = Replicate $ liftA2 (<|>) a b
   
-  Nil <|> ys = ys
-  xs <|> Nil = xs
-  Cons fx mx xs <|> Cons fy my ys =
-    -- <|> on Maybes discards the right operand if the left is a Just.
-    Cons id (fx <$> mx <|> fy <$> my) (fmap fx <$> xs <|> fmap fy <$> ys)
-
 -- | Behaves exactly as the 'Alternative' instance.
 instance Monoid (Replicate a b) where
   mempty  = empty
@@ -170,12 +146,12 @@ instance Monoid (Replicate a b) where
 -- '.' produces the set of occurrences that are the products of all possible
 -- pairs from the two operands.
 instance Category Replicate where
-  id  = one
-  (.) = (*?)
+  id = Replicate id
+  Replicate a . Replicate b = Replicate $ a . b
 
 -- | As 'Replicate' is both 'Applicative' and 'Category', it is also an 'Arrow'.
 instance Arrow Replicate where
-  arr f    = f   <$> id
+  arr f = Replicate $ fmap f
   f &&& g  = (,) <$> f <*> g
   f *** g  = f . arr fst &&& g . arr snd
   first  f = f  *** id
@@ -189,37 +165,36 @@ instance ArrowPlus Replicate where
   (<+>) = (<|>)
 
 
--- | Run an action a certain number of times, using '<|>' to branch (at the
--- deepest point possible) if multiple frequencies are allowed. Use greedy
--- choices: always make the longer alternative the left operand of @\<|\>@.
-(*!) :: Alternative f => Replicate a b -> f a -> f b
-r *! p = evalReplicate empty (\x xs -> xs <|> pure x) (\t -> p <**> t *! p) r
-
--- | Run an action a certain number of times, using '<|>' to branch (at the
--- deepest point possible) if multiple frequencies are allowed. Use lazy
--- choices: always make the 'pure' alternative the left operand of @\<|\>@.
-(*?) :: Alternative f => Replicate a b -> f a -> f b
-r *? p = evalReplicate empty (\x xs -> pure x <|> xs) (\t -> p <**> t *? p) r
-
-
 -- | Enumerate all the numbers of allowed occurrences encoded by the
--- replication scheme.
+-- Replication scheme.
 sizes :: Replicate a b -> [Int]
-sizes = flip sizes' 0 where
-  sizes' :: Replicate a b -> Int -> [Int]
-  sizes' = evalReplicate 
-    (\    _ -> [])
-    (\_ r n -> n : r n)
-    (\tl  n -> sizes' tl (n + 1))
+sizes r = ($ 0) . runKleisli . appEndo . getConst $ r *! (Const . Endo . Kleisli $ \n -> [n + 1])
+
+newtype Endo c a = Endo { appEndo :: c a a }
+instance Category c => Monoid (Endo c a) where
+  mempty = Endo id
+  Endo f `mappend` Endo g = Endo $ f . g
+instance ArrowPlus c => Alternative (Const (Endo c a)) where
+  empty = Const . Endo $ zeroArrow
+  Const (Endo f) <|> Const (Endo g) = Const . Endo $ f <+> g
+
+newtype DualAlt f a = DualAlt { getDualAlt :: f a } deriving (Functor, Applicative)
+instance Alternative f => Alternative (DualAlt f) where
+  empty = DualAlt empty
+  DualAlt a <|> DualAlt b = DualAlt $ b <|> a
+  
+-- | The same replication scheme, but greedy matches become lazy and vice versa.
+dual :: Replicate a b -> Replicate a b
+dual (Replicate f) = Replicate $ getDualAlt . f . DualAlt
 
 
 -- | Perform an action exactly zero times.
 zero :: b -> Replicate a b
-zero x = Cons id (pure x) Nil
+zero = pure
 
 -- | Perform an action exactly one time.
 one :: Replicate a a
-one = Cons id empty (zero id)
+one = id
 
 -- | Perform an action exactly two times.
 two :: Replicate a (a, a)
@@ -261,4 +236,4 @@ between m n = (++) <$> exactly m <*> atMost (n - m)
 
 -- | Repeat an action forever.
 forever :: Replicate a b
-forever = Cons id empty (const <$> forever)
+forever = Replicate $ fix . (*>)
