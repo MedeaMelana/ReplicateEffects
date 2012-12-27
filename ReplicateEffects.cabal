@@ -14,7 +14,7 @@ Bug-reports:         https://github.com/MedeaMelana/ReplicateEffects/issues
 -- Copyright:           
 
 Build-type:          Simple
-Cabal-version:       >= 1.2
+Cabal-version:       >= 1.6
 
 Library
   Exposed-modules:     Control.Replicate
