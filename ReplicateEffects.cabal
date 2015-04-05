@@ -1,7 +1,7 @@
 Name:                ReplicateEffects
 Version:             0.3
 Synopsis:            Composable replication schemes of applicative functors
--- Description:         
+Description:         Composable replication schemes of applicative functors
 Category:            Control
 
 License:             BSD3
