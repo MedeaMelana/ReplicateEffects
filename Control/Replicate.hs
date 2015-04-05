@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, Rank2Types #-}
+{-# LANGUAGE GADTs #-}
 -- | Composable replication schemes of applicative actions.
 --
 -- This module separates common combinators such as @some@ and @many@ (from
@@ -86,8 +86,9 @@ module Control.Replicate (
   zero, one, two, three, opt, many, some, exactly, atLeast, atMost, between, forever
   ) where
 
-import Prelude hiding (even, odd, id, (.))
+import Prelude hiding (even, odd, id, (.), foldr)
 import Data.Monoid
+import Data.Foldable
 import Control.Applicative hiding (many, some)
 import Control.Category
 import Control.Arrow
@@ -101,17 +102,15 @@ data Replicate a b where
   Nil :: Replicate a b
   Cons :: (c -> b) -> Maybe c -> Replicate a (a -> c) -> Replicate a b
 
--- Fold the Replicate list given:
--- * an "empty" value
--- * a function to combine the Cons value into the result
--- * a function to convert the value of the recursive call to the expected type
-foldReplicate :: (forall c. f c) 
-              -> (forall c. c -> f c -> f c) 
-              -> (forall c. f (a -> c) -> f c) 
-              -> Replicate a b -> f b
-foldReplicate e _ _ Nil = e
-foldReplicate e f g (Cons fx mx xs) = 
-  maybe id (f . fx) mx . g . foldReplicate e f g . fmap (fx .) $ xs
+-- Evaluate the Replicate list
+evalReplicate 
+  :: r                           -- an "empty" value
+  -> (b -> r -> r)               -- combine a head value into the result
+  -> (Replicate a (a -> b) -> r) -- convert the tail to the expected type
+  -> Replicate a b -> r
+evalReplicate e _    _   Nil = e
+evalReplicate _ cons rec (Cons fx mx xs) = 
+  foldr (cons . fx) (rec (fmap (fx .) xs)) mx
 
 
 -- | Map over the composite result type.
@@ -132,18 +131,16 @@ instance Functor (Replicate a) where
 -- 
 -- Another example: sequencing the set {0, 1} ('opt') with itself produces
 -- {0+0, 0+1, 1+0, 1+1} = {0, 1, 1, 2} = {0, 1, 2}. In case of overlap, like
--- in this example, '<*>' favors the heads (of type @Maybe b@) from the left
--- operand.
+-- in this example, '<*>' favors the heads from the left operand.
 instance Applicative (Replicate a) where
   pure = zero
   
   -- lowerBound (f1 <*> f2) = lowerBound f1 + lowerBound f2
   -- upperBound (f1 <*> f2) = upperBound f1 + upperBound f2
-  Nil <*> _ = Nil
-  Cons fx mx xs <*> ys =  -- 0 + n = n
-                       maybe empty ((<$> ys) . fx) mx
-                   <|> -- (1 + m) + n = 1 + (m + n)
-                       Cons id Nothing ((\x y z -> fx (x z) y) <$> xs <*> ys)
+  (<*>) = evalReplicate 
+    (\    _  -> Nil) 
+    (\f r xs -> f <$> xs <|> r xs)                  -- 0 + n = n
+    (\fs  xs -> Cons id empty (flip <$> fs <*> xs)) -- (1 + m) + n = 1 + (m + n)
 
 -- | 'empty' is the empty set {} of allowed occurrences. Not even performing
 -- an action zero times is allowed in that case.
@@ -196,32 +193,33 @@ instance ArrowPlus Replicate where
 -- deepest point possible) if multiple frequencies are allowed. Use greedy
 -- choices: always make the longer alternative the left operand of @\<|\>@.
 (*!) :: Alternative f => Replicate a b -> f a -> f b
-r *! p = foldReplicate empty (\x xs -> xs <|> pure x) (p <**>) r
+r *! p = evalReplicate empty (\x xs -> xs <|> pure x) (\t -> p <**> t *! p) r
 
 -- | Run an action a certain number of times, using '<|>' to branch (at the
 -- deepest point possible) if multiple frequencies are allowed. Use lazy
 -- choices: always make the 'pure' alternative the left operand of @\<|\>@.
 (*?) :: Alternative f => Replicate a b -> f a -> f b
-r *? p = foldReplicate empty (\x xs -> pure x <|> xs) (p <**>) r
+r *? p = evalReplicate empty (\x xs -> pure x <|> xs) (\t -> p <**> t *? p) r
 
 
 -- | Enumerate all the numbers of allowed occurrences encoded by the
 -- replication scheme.
 sizes :: Replicate a b -> [Int]
-sizes = ($ 0) . getConst . sizesFold where
-  sizesFold = foldReplicate 
-    (                Const (\_ -> []))
-    (\_ (Const g) -> Const (\n -> n : g n))
-    (\  (Const g) -> Const (\n -> g (n + 1)))
+sizes = flip sizes' 0 where
+  sizes' :: Replicate a b -> Int -> [Int]
+  sizes' = evalReplicate 
+    (\    _ -> [])
+    (\_ r n -> n : r n)
+    (\tl  n -> sizes' tl (n + 1))
 
 
 -- | Perform an action exactly zero times.
 zero :: b -> Replicate a b
-zero x = Cons id (Just x) Nil
+zero x = Cons id (pure x) Nil
 
 -- | Perform an action exactly one time.
 one :: Replicate a a
-one = Cons id Nothing (zero id)
+one = Cons id empty (zero id)
 
 -- | Perform an action exactly two times.
 two :: Replicate a (a, a)
@@ -263,4 +261,4 @@ between m n = (++) <$> exactly m <*> atMost (n - m)
 
 -- | Repeat an action forever.
 forever :: Replicate a b
-forever = Cons id Nothing (const <$> forever)
+forever = Cons id empty (const <$> forever)
